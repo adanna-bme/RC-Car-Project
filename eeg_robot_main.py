@@ -59,4 +59,3 @@ while True:
     else:
         blink_active = False
         print("Waiting for intentional blink...")
-6
