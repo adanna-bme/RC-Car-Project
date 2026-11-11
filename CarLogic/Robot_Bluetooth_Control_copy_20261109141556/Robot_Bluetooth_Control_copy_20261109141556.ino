@@ -67,9 +67,6 @@ void setup() {
   // Start serial communication
   Serial.begin(9600);
   BT.begin(9600);
-
-  Serial.println("Bluetooth motor control ready!");
-  Serial.println("Waiting for F or S...");
 }
 
 // ===== MAIN LOOP =====
