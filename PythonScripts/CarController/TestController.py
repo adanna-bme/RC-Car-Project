@@ -14,10 +14,11 @@ CAR_BAUD = 9600
 SEND_BLUETOOTH = True
 
 # BLINK DETECTION
-FWD_THRESHHOLD = 900  # Activated by blinking
-BWD_THRESHHOLD = None
-LFT_THRESHHOLD = None
-RHT_THRESHHOLD = None
+FORWARD_THRESHOLD = 900  # Activated by blinking
+# Zero disables a direction until its threshold is configured.
+BACKWARD_THRESHOLD = 0
+LEFT_THRESHOLD = 0
+RIGHT_THRESHOLD = 0
 RESET_THRESHOLD = 300
 
 # MOVEMENT TIMING
@@ -459,6 +460,20 @@ class EEGRobotController:
 
         print("Signal range:", signal_range)
 
+        # Select the highest configured threshold reached by this signal.
+        # Ties use the direction order below.
+        direction = None
+        matched_threshold = 0
+        for candidate, threshold in (
+            ("forward", FORWARD_THRESHOLD),
+            ("backward", BACKWARD_THRESHOLD),
+            ("left", LEFT_THRESHOLD),
+            ("right", RIGHT_THRESHOLD),
+        ):
+            if threshold > matched_threshold and signal_range >= threshold:
+                direction = candidate
+                matched_threshold = threshold
+
         # Reset blink detection
         if signal_range < RESET_THRESHOLD:
 
@@ -466,7 +481,7 @@ class EEGRobotController:
 
         # Detect blink
         elif (
-            signal_range >= FWD_THRESHHOLD
+            direction is not None
             and not self.blink_active
         ):
 
@@ -511,7 +526,7 @@ class EEGRobotController:
 
                 else:
 
-                    self.start_movement(now)
+                    self.start_movement(now, direction)
 
     # ======================================
     # EEG PROCESSING LOOP
