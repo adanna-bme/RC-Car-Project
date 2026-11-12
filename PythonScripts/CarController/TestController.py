@@ -1,4 +1,5 @@
 
+import re
 import time
 import serial
 
@@ -6,6 +7,8 @@ import serial
 # ==========================================
 # CONFIGURATION
 # ==========================================
+
+COM_PORT_PATTERN = re.compile(r"COM[0-9]{1,2}")
 
 EEG_BAUD = 57600
 
@@ -596,10 +599,30 @@ class EEGRobotController:
 # PROGRAM ENTRY POINT
 # ==========================================
 
+def prompt_com_port(prompt):
+
+    while True:
+        port = input(prompt).strip()
+        if COM_PORT_PATTERN.fullmatch(port):
+            return port
+        print("Invalid COM port. Please enter a valid COM port.")
+        time.sleep(1)
+
+
 def main():
 
-    car_port = input("Enter robot COM port: ").strip()
-    eeg_port = input("Enter EEG Headset COM port: ").strip()
+    while True:
+        operating_system = input("Select operating system (1: Linux, 2: Windows): ").strip()
+        if operating_system in ("1", "2"):
+            break
+        print("Invalid selection. Please enter 1 or 2.")
+
+    if operating_system == "1":
+        car_port = input("Enter robot ttyUSB path (e.g. /dev/ttyUSB0): ").strip()
+        eeg_port = input("Enter EEG Headset rfcomm path (e.g. /dev/rfcomm0): ").strip()
+    else:
+        car_port = prompt_com_port("Enter robot COM port: ")
+        eeg_port = prompt_com_port("Enter EEG Headset COM port: ")
 
     # Create robot car object
     car = RobotCar(
