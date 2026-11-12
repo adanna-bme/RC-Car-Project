@@ -18,10 +18,11 @@ const int IN4 = 8;
 // ===== MOTOR SETTINGS =====
 const int MOTOR_SPEED = 140;
 
-// Stop if no F command arrives within 700 ms
+// Stop if no valid movement command arrives within 700 ms.
 const unsigned long TIMEOUT = 700;
 
 bool carMoving = false;
+char activeCommand = 'S';
 unsigned long lastCommandTime = 0;
 
 // ===== STOP MOTORS =====
@@ -35,6 +36,7 @@ void stopMotors() {
   digitalWrite(IN4, LOW);
 
   carMoving = false;
+  activeCommand = 'S';
 }
 
 // ===== MOVE FORWARD =====
@@ -44,6 +46,49 @@ void moveForward() {
 
   digitalWrite(IN3, HIGH);
   digitalWrite(IN4, LOW);
+
+  analogWrite(ENA, MOTOR_SPEED);
+  analogWrite(ENB, MOTOR_SPEED);
+
+  carMoving = true;
+}
+
+// ===== MOVE BACKWARD =====
+void moveBackward() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+
+  analogWrite(ENA, MOTOR_SPEED);
+  analogWrite(ENB, MOTOR_SPEED);
+
+  carMoving = true;
+}
+
+// Pivot turns assume motor A is on the left and motor B on the right.
+// ===== TURN LEFT =====
+void turnLeft() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+
+  analogWrite(ENA, MOTOR_SPEED);
+  analogWrite(ENB, MOTOR_SPEED);
+
+  carMoving = true;
+}
+
+// ===== TURN RIGHT =====
+void turnRight() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
 
   analogWrite(ENA, MOTOR_SPEED);
   analogWrite(ENB, MOTOR_SPEED);
@@ -76,12 +121,35 @@ void loop() {
   while (BT.available()) {
     char command = BT.read();
 
-    if (command == 'F') {
+    if (command == 'F' || command == 'B' ||
+        command == 'L' || command == 'R') {
+      // Repeated direction commands are the controller's heartbeat.
       lastCommandTime = millis();
 
-      if (!carMoving) {
-        moveForward();
-        Serial.println("FORWARD");
+      if (command != activeCommand) {
+        // Disable both motors before changing their direction pins.
+        stopMotors();
+
+        switch (command) {
+          case 'F':
+            moveForward();
+            Serial.println("FORWARD");
+            break;
+          case 'B':
+            moveBackward();
+            Serial.println("BACKWARD");
+            break;
+          case 'L':
+            turnLeft();
+            Serial.println("LEFT");
+            break;
+          case 'R':
+            turnRight();
+            Serial.println("RIGHT");
+            break;
+        }
+
+        activeCommand = command;
       }
     }
 

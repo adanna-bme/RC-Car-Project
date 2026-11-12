@@ -13,17 +13,16 @@ CAR_BAUD = 9600
 
 SEND_BLUETOOTH = True
 
-# BLINK DETECTION
-FORWARD_THRESHOLD = 900  # Activated by blinking
+# SIGNAL COMMAND THRESHOLDS
+FORWARD_THRESHOLD = 900
 # Zero disables a direction until its threshold is configured.
 BACKWARD_THRESHOLD = 0
 LEFT_THRESHOLD = 0
 RIGHT_THRESHOLD = 0
-RESET_THRESHOLD = 300
+RESET_THRESHOLD = 300  # Closest to this threshold selects STOP.
 
 # MOVEMENT TIMING
 START_COOLDOWN_SECONDS = 1.0
-STOP_COOLDOWN_SECONDS = 0.75
 MAX_FORWARD_SECONDS = 5.0
 
 # SIGNAL PROCESSING
@@ -144,13 +143,11 @@ class EEGRobotController:
         # MOVEMENT STATE
         self.moving = False
         self.active_direction = None
-        self.blink_active = False
 
-        self.last_blink = float("-inf")
         self.last_stop = float("-inf")
         self.last_heartbeat = 0.0
 
-        self.forward_started = None
+        self.movement_started = None
 
         # EEG STATE
         self.buffer = bytearray()
@@ -359,8 +356,6 @@ class EEGRobotController:
                 "EEG signal/contact lost"
             )
 
-            self.blink_active = False
-
             self.window.clear()
             self.window_start = now
 
@@ -384,7 +379,7 @@ class EEGRobotController:
         self.moving = True
         self.active_direction = direction
 
-        self.forward_started = now
+        self.movement_started = now
 
         print(direction.upper(), "requested")
 
@@ -411,7 +406,7 @@ class EEGRobotController:
             self.moving = False
             self.active_direction = None
 
-            self.forward_started = None
+            self.movement_started = None
 
             self.last_stop = time.monotonic()
 
@@ -419,12 +414,12 @@ class EEGRobotController:
 
             self.car.stop()
 
-    def check_max_forward_time(self, now):
+    def check_max_movement_time(self, now):
 
         if (
             self.moving
-            and self.forward_started is not None
-            and now - self.forward_started
+            and self.movement_started is not None
+            and now - self.movement_started
             >= MAX_FORWARD_SECONDS
         ):
 
@@ -446,87 +441,40 @@ class EEGRobotController:
             self.last_heartbeat = now
 
     # ======================================
-    # BLINK DETECTION
+    # SIGNAL COMMAND SELECTION
     # ======================================
 
-    def process_blink(self, now):
+    def process_signal(self, now):
 
         if len(self.window) < 20:
             return
 
-        signal_range = (
-            max(self.window) - min(self.window)
-        )
-
+        signal_range = max(self.window) - min(self.window)
         print("Signal range:", signal_range)
 
-        # Select the highest configured threshold reached by this signal.
-        # Ties use the direction order below.
-        direction = None
-        matched_threshold = 0
-        for candidate, threshold in (
-            ("forward", FORWARD_THRESHOLD),
-            ("backward", BACKWARD_THRESHOLD),
-            ("left", LEFT_THRESHOLD),
-            ("right", RIGHT_THRESHOLD),
-        ):
-            if threshold > matched_threshold and signal_range >= threshold:
-                direction = candidate
-                matched_threshold = threshold
-
-        # Reset blink detection
-        if signal_range < RESET_THRESHOLD:
-
-            self.blink_active = False
-
-        # Detect blink
-        elif (
-            direction is not None
-            and not self.blink_active
-        ):
-
-            self.blink_active = True
-
-            if self.moving:
-
-                required_cooldown = (
-                    STOP_COOLDOWN_SECONDS
-                )
-
-            else:
-
-                required_cooldown = (
-                    START_COOLDOWN_SECONDS
-                )
-
-            allowed = (
-                now - self.last_blink
-                >= required_cooldown
+        # STOP wins equal-distance ties, followed by the direction order.
+        thresholds = [("stop", RESET_THRESHOLD)]
+        thresholds.extend(
+            (direction, threshold)
+            for direction, threshold in (
+                ("forward", FORWARD_THRESHOLD),
+                ("backward", BACKWARD_THRESHOLD),
+                ("left", LEFT_THRESHOLD),
+                ("right", RIGHT_THRESHOLD),
             )
+            if threshold > 0
+        )
+        direction, threshold = min(
+            thresholds,
+            key=lambda candidate: abs(signal_range - candidate[1])
+        )
+        print("Closest command:", direction.upper(), "threshold:", threshold)
 
-            if not self.moving:
-
-                allowed = (
-                    allowed
-                    and now - self.last_stop
-                    >= START_COOLDOWN_SECONDS
-                )
-
-            if allowed:
-
-                self.last_blink = now
-
-                print("BLINK DETECTED!")
-
-                if self.moving:
-
-                    self.stop_movement(
-                        "intentional blink"
-                    )
-
-                else:
-
-                    self.start_movement(now, direction)
+        if direction == "stop":
+            self.stop_movement("signal closest to STOP threshold")
+        elif direction != self.active_direction:
+            if now - self.last_stop >= START_COOLDOWN_SECONDS:
+                self.start_movement(now, direction)
 
     # ======================================
     # EEG PROCESSING LOOP
@@ -552,7 +500,7 @@ class EEGRobotController:
             )
 
             # Check maximum movement duration
-            self.check_max_forward_time(now)
+            self.check_max_movement_time(now)
 
             # Send movement heartbeat
             self.send_heartbeat(
@@ -568,7 +516,7 @@ class EEGRobotController:
 
                 if healthy:
 
-                    self.process_blink(now)
+                    self.process_signal(now)
 
                 self.window.clear()
 
@@ -611,7 +559,7 @@ class EEGRobotController:
                 print("Waiting for good EEG signal...")
 
                 print(
-                    "One eye squeeze = FORWARD/STOP"
+                    "Signal range selects the closest configured command threshold"
                 )
 
                 print("Press Ctrl+C to end test.\n")
