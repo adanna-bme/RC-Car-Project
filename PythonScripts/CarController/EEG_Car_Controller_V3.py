@@ -8,10 +8,10 @@ import serial
 # ==========================================
 
 # BLUETOOTH CONNECTIONS
-EEG_PORT = "COM10"
+EEG_PORT = None
 EEG_BAUD = 57600
 
-CAR_PORT = "COM8"
+CAR_PORT = None
 CAR_BAUD = 9600
 
 # True = control physical car
