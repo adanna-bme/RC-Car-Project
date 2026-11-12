@@ -7,16 +7,17 @@ import serial
 # CONFIGURATION
 # ==========================================
 
-EEG_PORT = "COM10"
 EEG_BAUD = 57600
 
-CAR_PORT = "COM8"
 CAR_BAUD = 9600
 
 SEND_BLUETOOTH = True
 
 # BLINK DETECTION
-BLINK_THRESHOLD = 900
+FORWARD_THRESHOLD = 900  # Activated by blinking
+BACKWARD_THRESHOLD = None
+LEFT_THRESHOLD = None
+RIGHT_THRESHOLD = None
 RESET_THRESHOLD = 300
 
 # MOVEMENT TIMING
@@ -80,6 +81,21 @@ class RobotCar:
         self.send_command("F")
         self.moving = True
 
+    def backward(self):
+
+        self.send_command("B")
+        self.moving = True
+
+    def left(self):
+
+        self.send_command("L")
+        self.moving = True
+
+    def right(self):
+
+        self.send_command("R")
+        self.moving = True
+
     def stop(self):
 
         self.send_command("S")
@@ -119,12 +135,14 @@ class RobotCar:
 
 class EEGRobotController:
 
-    def __init__(self, car):
+    def __init__(self, car, eeg_port):
 
         self.car = car
+        self.eeg_port = eeg_port
 
         # MOVEMENT STATE
         self.moving = False
+        self.active_direction = None
         self.blink_active = False
 
         self.last_blink = float("-inf")
@@ -353,23 +371,44 @@ class EEGRobotController:
     # MOVEMENT CONTROL
     # ======================================
 
-    def start_movement(self, now):
+    def start_movement(self, now, direction="forward"):
+
+        movement = {
+            "forward": self.car.forward,
+            "backward": self.car.backward,
+            "left": self.car.left,
+            "right": self.car.right,
+        }[direction]
 
         self.moving = True
+        self.active_direction = direction
 
         self.forward_started = now
 
-        print("FORWARD requested")
+        print(direction.upper(), "requested")
 
-        self.car.forward()
+        movement()
 
         self.last_heartbeat = now
+
+    def backward(self, now):
+
+        self.start_movement(now, "backward")
+
+    def left(self, now):
+
+        self.start_movement(now, "left")
+
+    def right(self, now):
+
+        self.start_movement(now, "right")
 
     def stop_movement(self, reason):
 
         if self.moving:
 
             self.moving = False
+            self.active_direction = None
 
             self.forward_started = None
 
@@ -389,7 +428,7 @@ class EEGRobotController:
         ):
 
             self.stop_movement(
-                "maximum forward duration reached"
+                "maximum movement duration reached"
             )
 
     def send_heartbeat(self, now, healthy):
@@ -401,7 +440,7 @@ class EEGRobotController:
             >= HEARTBEAT_SECONDS
         ):
 
-            self.car.forward()
+            getattr(self.car, self.active_direction)()
 
             self.last_heartbeat = now
 
@@ -427,7 +466,7 @@ class EEGRobotController:
 
         # Detect blink
         elif (
-            signal_range >= BLINK_THRESHOLD
+            signal_range >= FORWARD_THRESHOLD
             and not self.blink_active
         ):
 
@@ -543,11 +582,11 @@ class EEGRobotController:
 
             print(
                 "Connecting to MindWave on",
-                EEG_PORT
+                self.eeg_port
             )
 
             with serial.Serial(
-                EEG_PORT,
+                self.eeg_port,
                 EEG_BAUD,
                 timeout=0
             ) as eeg:
@@ -596,14 +635,17 @@ class EEGRobotController:
 
 def main():
 
+    car_port = input("Enter robot COM port: ").strip()
+    eeg_port = input("Enter EEG Headset COM port: ").strip()
+
     # Create robot car object
     car = RobotCar(
-        CAR_PORT,
+        car_port,
         CAR_BAUD
     )
 
     # Create EEG controller object
-    controller = EEGRobotController(car)
+    controller = EEGRobotController(car, eeg_port)
 
     # Start controller
     controller.run()
