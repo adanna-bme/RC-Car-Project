@@ -14,10 +14,10 @@ CAR_BAUD = 9600
 SEND_BLUETOOTH = True
 
 # BLINK DETECTION
-FORWARD_THRESHOLD = 900  # Activated by blinking
-BACKWARD_THRESHOLD = None
-LEFT_THRESHOLD = None
-RIGHT_THRESHOLD = None
+FWD_THRESHHOLD = 900  # Activated by blinking
+BWD_THRESHHOLD = None
+LFT_THRESHHOLD = None
+RHT_THRESHHOLD = None
 RESET_THRESHOLD = 300
 
 # MOVEMENT TIMING
@@ -466,7 +466,7 @@ class EEGRobotController:
 
         # Detect blink
         elif (
-            signal_range >= FORWARD_THRESHOLD
+            signal_range >= FWD_THRESHHOLD
             and not self.blink_active
         ):
 
