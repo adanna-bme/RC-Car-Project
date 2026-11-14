@@ -618,7 +618,7 @@ def main():
         print("Invalid selection. Please enter 1 or 2.")
 
     if operating_system == "1":
-        car_port = input("Enter robot ttyUSB path (e.g. /dev/ttyUSB0): ").strip()
+        car_port = input("Enter robot rfcomm path (e.g. /dev/rfcomm0): ").strip()
         eeg_port = input("Enter EEG Headset rfcomm path (e.g. /dev/rfcomm0): ").strip()
     else:
         car_port = prompt_com_port("Enter robot COM port: ")
